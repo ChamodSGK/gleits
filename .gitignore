@@ -1,0 +1,4 @@
+node_modules
+dist
+# Form submissions contain personal details: keep them out of git
+data/*.json
