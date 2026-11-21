@@ -548,7 +548,7 @@ html.intro-lock, html.intro-lock body { overflow: hidden; }
   transform: scale(calc(1 + var(--glow, 0) * 0.025));
 }
 /* Landing: the logo flies into the header (JS sets the target transform) */
-.intro.landing .intro-logo { transition: transform 1s cubic-bezier(0.7, 0, 0.15, 1), filter 0.5s; filter: none; }
+.intro.landing .intro-logo { transition: transform 1.3s cubic-bezier(0.7, 0, 0.15, 1), filter 0.6s; filter: none; }
 .intro-under {
   position: absolute; left: 50%; top: calc(var(--ly, 0px) + var(--lh, 0px) + 32px); transform: translateX(-50%);
   width: min(90vw, 760px); display: flex; flex-direction: column; align-items: center; gap: 28px; pointer-events: none;
