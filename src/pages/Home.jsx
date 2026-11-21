@@ -1,10 +1,9 @@
-import { Fragment, forwardRef, useCallback, useRef, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import HeroParticles from "../effects/HeroParticles.jsx";
 import ScrollStory from "../effects/ScrollStory.jsx";
-import VelocityMarquee from "../effects/VelocityMarquee.jsx";
 import { Link } from "react-router-dom";
-import { featuredTechnologies, industries, pad, processSteps, projects, services } from "../data.js";
-import { ArrowRight, ArrowUpRight, Code, Heart, Shield } from "../components/Icons.jsx";
+import { industries, pad, processSteps, projects, services } from "../data.js";
+import { ArrowRight, ArrowUpRight, Code, Heart, Shield, Waves } from "../components/Icons.jsx";
 import { Eyebrow, usePageMeta } from "../components/shared.jsx";
 import ProjectCard from "../components/ProjectCard.jsx";
 import Process from "../components/Process.jsx";
@@ -24,46 +23,6 @@ function RiseWords({ text, accent }) {
 
 /** WebGL is used unless the visitor prefers reduced motion. */
 const wantsMotion = () => typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/**
- * The logo's i→t swash, extended into a flowing ribbon of light.
- * With WebGL running, the box stays as a layout anchor and the particles draw into it;
- * otherwise the SVG version is shown.
- */
-const HeroRibbon = forwardRef(function HeroRibbon({ svg }, ref) {
-  const main = "M-40 430 C 110 430 170 300 290 300 S 450 420 640 170";
-  return (
-    <div className="ribbon-box" aria-hidden="true" ref={ref}>
-      {svg && <svg className="ribbon" viewBox="0 0 600 600" fill="none">
-        <defs>
-          <linearGradient id="rb" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#2A6FD6" stopOpacity="0" />
-            <stop offset=".35" stopColor="#2E95E6" />
-            <stop offset=".75" stopColor="#6FD0F7" />
-            <stop offset="1" stopColor="#D6DAE0" stopOpacity=".2" />
-          </linearGradient>
-          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="8" />
-          </filter>
-        </defs>
-        <path d={main} stroke="url(#rb)" strokeWidth="44" strokeLinecap="round" opacity=".35" filter="url(#glow)" />
-        <path d={main} stroke="url(#rb)" strokeWidth="30" strokeLinecap="round" />
-        <path className="flow" d="M-40 470 C 110 470 180 340 300 345 S 460 460 640 215" stroke="url(#rb)" strokeWidth="1.5" />
-        <path className="flow" d="M-40 510 C 120 510 190 380 310 390 S 470 500 640 260" stroke="url(#rb)" strokeWidth="1.2" opacity=".7" />
-        <path className="flow" d="M-40 390 C 100 390 160 255 280 255 S 440 380 640 125" stroke="url(#rb)" strokeWidth="1.5" />
-        <path className="flow" d="M-40 350 C 90 350 150 210 270 210 S 430 340 640 80" stroke="url(#rb)" strokeWidth="1.2" opacity=".6" />
-        <circle cx="478" cy="150" r="22" fill="#D6DAE0" />
-        <circle cx="290" cy="300" r="5" fill="#fff">
-          <animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite" />
-        </circle>
-      </svg>}
-      <div className="ribbon-note">
-        <b>●</b> Discover → Plan → Design
-        <br />→ Build → Test → Launch → Evolve
-      </div>
-    </div>
-  );
-});
 
 /** Tabbed explorer: pick a service on the left, see the detail on the right. */
 function ServiceExplorer() {
@@ -147,17 +106,15 @@ export default function Home() {
     "",
     "GLEITS is a Sri Lankan technology company building thoughtful software, websites, mobile applications and digital experiences for business growth.",
   );
-  const ribbonRef = useRef(null);
   const [fx, setFx] = useState(wantsMotion);
   const onFxFail = useCallback(() => setFx(false), []);
 
   return (
     <>
-      {/* ============ HERO ============ */}
+      {/* ============ HERO: one screen, centred; the ribbon flows behind everything ============ */}
       <section className="hero" aria-labelledby="hero-title">
-        {fx && <HeroParticles anchorRef={ribbonRef} onFail={onFxFail} />}
+        {fx ? <HeroParticles onFail={onFxFail} /> : <Waves className="hero-waves" />}
         <div className="orb" aria-hidden="true" />
-        <div className="orb orb-2" aria-hidden="true" />
         <div className="grid-bg" aria-hidden="true" />
         <svg className="grain" aria-hidden="true">
           <filter id="grain-f">
@@ -165,54 +122,52 @@ export default function Home() {
           </filter>
           <rect width="100%" height="100%" filter="url(#grain-f)" />
         </svg>
+        <div className="hero-shade" aria-hidden="true" />
 
-        <div className="wrap hero-grid">
-          <div>
-            <span className="hero-chip">YOUR VISION. OUR INNOVATION.</span>
-            <h1 id="hero-title">
-              <RiseWords text="Technology that moves your business" accent="forward." />
-            </h1>
-            <p className="lead">
-              Thoughtful software. Connected experiences. A technology partner who sees the bigger picture — and helps
-              you build it.
-            </p>
-            <div className="btn-row">
-              <Link to="/contact" className="btn btn-primary">
-                Discuss your project <ArrowUpRight />
-              </Link>
-              <Link to="/services" className="btn btn-ghost">
-                Explore our services <ArrowRight />
-              </Link>
-            </div>
+        <div className="wrap hero-center">
+          <h1 id="hero-title">
+            <RiseWords text="Technology that moves your business" accent="forward." />
+          </h1>
+          <p className="lead">
+            Thoughtful software. Connected experiences. A technology partner who sees the bigger picture and helps you
+            build it.
+          </p>
+          <div className="btn-row">
+            <Link to="/contact" className="btn btn-primary">
+              Discuss your project <ArrowUpRight />
+            </Link>
+            <Link to="/services" className="btn btn-ghost">
+              Explore our services <ArrowRight />
+            </Link>
           </div>
-          <HeroRibbon ref={ribbonRef} svg={!fx} />
         </div>
+      </section>
 
-        <div className="pillars">
-          <ul className="wrap">
-            <li>
-              <Code size={24} strokeWidth={1.6} style={{ color: "var(--sky)", flex: "none" }} />
-              <div>
-                <strong>Purpose-built solutions</strong>
-                <span>Technology that fits your business</span>
-              </div>
-            </li>
-            <li>
-              <Shield size={24} strokeWidth={1.6} style={{ color: "var(--sky)", flex: "none" }} />
-              <div>
-                <strong>Quality at every step</strong>
-                <span>Thoughtful design. Dependable delivery.</span>
-              </div>
-            </li>
-            <li>
-              <Heart size={24} strokeWidth={1.6} style={{ color: "var(--sky)", flex: "none" }} />
-              <div>
-                <strong>A partner, from day one</strong>
-                <span>Your goals guide everything we build</span>
-              </div>
-            </li>
-          </ul>
-        </div>
+      {/* ============ PILLARS (just below the first screen) ============ */}
+      <section className="pillars" aria-label="Why GLEITS">
+        <ul className="wrap">
+          <li>
+            <Code size={24} strokeWidth={1.6} style={{ color: "var(--sky)", flex: "none" }} />
+            <div>
+              <strong>Purpose-built solutions</strong>
+              <span>Technology that fits your business</span>
+            </div>
+          </li>
+          <li>
+            <Shield size={24} strokeWidth={1.6} style={{ color: "var(--sky)", flex: "none" }} />
+            <div>
+              <strong>Quality at every step</strong>
+              <span>Thoughtful design. Dependable delivery.</span>
+            </div>
+          </li>
+          <li>
+            <Heart size={24} strokeWidth={1.6} style={{ color: "var(--sky)", flex: "none" }} />
+            <div>
+              <strong>A partner, from day one</strong>
+              <span>Your goals guide everything we build</span>
+            </div>
+          </li>
+        </ul>
       </section>
 
       {/* ============ PINNED SCROLL STORY ============ */}
@@ -223,7 +178,7 @@ export default function Home() {
         <div className="wrap">
           <div className="section-head rv">
             <div>
-              <Eyebrow>01 — What we do</Eyebrow>
+              <Eyebrow>01 · What we do</Eyebrow>
               <h2 id="svc-title" className="title">
                 What would you like to build next?
               </h2>
@@ -263,7 +218,7 @@ export default function Home() {
             </figcaption>
           </figure>
           <div className="rv">
-            <Eyebrow>02 — The people behind the possibilities</Eyebrow>
+            <Eyebrow>02 · The people behind the possibilities</Eyebrow>
             <h2 id="about-title" className="title-s">
               Your technology partner for digital growth.
             </h2>
@@ -272,7 +227,7 @@ export default function Home() {
               thoughtful design together to build digital solutions with purpose.
             </p>
             <p className="body-l">
-              Based in Sri Lanka, we work with startups, SMEs and organizations ready to take their next step — with a
+              Based in Sri Lanka, we work with startups, SMEs and organizations ready to take their next step, with a
               collaborative approach that puts your goals first.
             </p>
             <ul className="chips">
@@ -292,7 +247,7 @@ export default function Home() {
         <div className="wrap">
           <div className="section-head rv">
             <div>
-              <Eyebrow>03 — Ideas in action</Eyebrow>
+              <Eyebrow>03 · Ideas in action</Eyebrow>
               <h2 id="work-title" className="title">
                 Digital solutions. Real possibilities.
               </h2>
@@ -314,7 +269,7 @@ export default function Home() {
       <section className="section" aria-labelledby="ind-title">
         <div className="wrap two-col">
           <div className="rv">
-            <Eyebrow>04 — Different industries. Shared ambition.</Eyebrow>
+            <Eyebrow>04 · Different industries. Shared ambition.</Eyebrow>
             <h2 id="ind-title" className="title">
               Your industry. Our next challenge.
             </h2>
@@ -340,23 +295,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ============ TECHNOLOGY MARQUEE ============ */}
+      {/* ============ TECHNOLOGIES ============ */}
       <section aria-labelledby="tech-title" style={{ paddingBottom: "var(--section)" }}>
         <div className="wrap section-head rv">
           <div>
-            <Eyebrow>05 — The right tools. The right foundation.</Eyebrow>
+            <Eyebrow>05 · The right tools. The right foundation.</Eyebrow>
             <h2 id="tech-title" className="title-s">
               Built with modern technologies.
             </h2>
+            <p className="lead">A thoughtful technology choice starts with your project requirements.</p>
           </div>
           <Link to="/technologies" className="text-link">
             Explore the ecosystem <ArrowUpRight size={16} />
           </Link>
         </div>
-        <VelocityMarquee items={featuredTechnologies} />
-        <p className="wrap" style={{ marginTop: 24, fontSize: 14.5, color: "var(--dim)" }}>
-          A thoughtful technology choice starts with your project requirements.
-        </p>
       </section>
 
       <Process steps={processSteps} />
