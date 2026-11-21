@@ -3,33 +3,33 @@ import { LOGO_RATIO, loadLogoTargets } from "./logoTargets.js";
 import { getLenis } from "./smoothScroll.js";
 
 /**
- * Site intro, shown when the site first opens on the Home page. It is driven by the
- * visitor's scrolling, not a timer:
+ * Site intro, played automatically when the site first opens on the Home page:
  *
- *  1. Scrolling down (wheel, trackpad, swipe or arrow keys) builds the real GLEITS logo
- *     letter by letter (g → l → e → i → t → s) from drifting dust, while the tagline
- *     appears word by word and the letter slots fill. Scrolling up takes it apart again.
- *  2. At the end of the build the finished logo locks in with a glow.
- *  3. Scrolling past that "lands": the particles burst away, the overlay fades and the
- *     logo flies into the header logo's exact spot, revealing the hero underneath.
+ *  1. Drifting dust builds the real GLEITS logo letter by letter (g → l → e → i → t → s)
+ *     while the tagline appears word by word and the letter slots fill.
+ *  2. The particles fade away and the clean logo image locks in with a glow.
+ *  3. "Landing": the overlay fades and the logo flies into the header logo's exact
+ *     spot, revealing the hero underneath.
  *
- * The page itself doesn't move while the intro is up. "Skip intro" (or Esc) jumps
- * to the landing. Calls onLand() as the landing starts and onDone() when the overlay
- * can be removed. Without WebGL2 it finishes immediately.
+ * The page doesn't move while the intro is up. Scrolling, swiping, any key or
+ * "Skip intro" jumps ahead to the finished logo and the landing. Calls onLand() as
+ * the landing starts and onDone() when the overlay can be removed. Without WebGL2
+ * it finishes immediately.
  */
 
 const LETTERS = ["G", "L", "E", "I", "T", "S"];
 const TAGLINE = "Empowering Innovation Through Technology Excellence!";
 
-/* ---- Timeline. Units are "build progress"; scrolling moves along it ---- */
+/* ---- Timeline, in "build progress" units (played at AUTO_RATE units per second) ---- */
 const L0 = 0.1; // first letter starts
 const STEP = 0.36; // gap between letters
 const DUR = 0.6; // length of one letter's flight
 const BUILT = L0 + 5 * STEP + DUR; // 2.5: all six letters in place
 const LOCK = BUILT + 0.05; // real logo image takes over; particles fade out by LOCK + 0.3
-const LAND = 3.45; // end of the scroll-driven part: landing begins here
-const LAND_DUR = 1.1; // the landing itself plays in seconds once triggered
-const SCROLL_PX = 1700; // wheel/swipe distance (px) from empty to landing
+const LAND = 3.45; // landing begins here
+const LAND_DUR = 1.4; // the landing itself, in seconds (the logo's flight in CSS takes 1.3s)
+const AUTO_DELAY = 0.35; // seconds of drifting dust before the first letter
+const AUTO_RATE = 0.7; // playback speed: letters done ≈3.9s, landing ≈5.3s, finished ≈6.7s (higher = faster)
 
 const VERT = /* glsl */ `#version 300 es
 precision highp float;
@@ -126,13 +126,10 @@ export default function IntroLoader({ onLand, onDone }) {
   const logoRef = useRef(null);
   const taglineRef = useRef(null);
   const skipRef = useRef(null);
-  const cueRef = useRef(null);
-  const cueTextRef = useRef(null);
   const slotRefs = useRef([]);
   // keep the latest callbacks without re-running the effect
   const cb = useRef({ onLand, onDone });
   cb.current = { onLand, onDone };
-  const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -256,43 +253,31 @@ export default function IntroLoader({ onLand, onDone }) {
     resize();
     window.addEventListener("resize", resize);
 
-    // ---- input: scrolling drives the build ----
-    let target = 0; // where the visitor has scrolled to (0..LAND)
-    let t = 0; // eased position the visuals follow
+    // ---- timeline: plays on its own; scrolling, swiping or a key skips ahead ----
+    let t = 0; // timeline position the visuals follow (0..LAND, then the landing)
+    let auto = 0; // seconds of playback since the logo data was ready
+    let skipped = false;
     let landing = false;
-    let lastInput = performance.now();
-    const advance = (amount) => {
-      if (!ready || landing) return;
-      target = clamp(target + amount, 0, LAND);
-      lastInput = performance.now();
+    const skip = () => {
+      if (ready && !landing) skipped = true;
     };
-    const perPx = LAND / SCROLL_PX;
-    const onWheel = (e) => {
-      // deltaMode 1 = lines (e.g. Firefox): roughly 40px each
-      advance(e.deltaY * (e.deltaMode === 1 ? 40 : 1) * perPx);
+    const onKey = (e) => {
+      if (e.key === "Tab" || e.key === "Shift") return; // let people reach the Skip button
+      if (e.target instanceof HTMLButtonElement && (e.key === " " || e.key === "Enter")) return; // the button handles it
+      skip();
     };
+    // A real swipe skips; simply touching the screen (to play with the dots) doesn't
     let touchY = null;
     const onTouchStart = (e) => (touchY = e.touches[0].clientY);
     const onTouchMove = (e) => {
-      if (touchY == null) return;
-      const y = e.touches[0].clientY;
-      advance((touchY - y) * 1.6 * perPx); // swiping up = scrolling down (~3 swipes to build)
-      touchY = y;
-    };
-    const onKey = (e) => {
-      const step = { ArrowDown: 0.4, PageDown: 0.8, " ": 0.8, Enter: 0.8, ArrowUp: -0.4, PageUp: -0.8 }[e.key];
-      if (e.key === "Escape") skip();
-      else if (step && !(e.target instanceof HTMLButtonElement && (e.key === " " || e.key === "Enter"))) advance(step);
-    };
-    const skip = () => {
-      if (ready && !landing) target = LAND;
+      if (touchY != null && Math.abs(e.touches[0].clientY - touchY) > 40) skip();
     };
     const mouse = { x: 0, y: 0, tx: 0, ty: 0, on: 0, ton: 0 };
     const onMove = (e) => {
       [mouse.tx, mouse.ty] = toWorld(e.clientX, e.clientY);
       mouse.ton = 1;
     };
-    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("wheel", skip, { passive: true });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("keydown", onKey);
@@ -320,8 +305,6 @@ export default function IntroLoader({ onLand, onDone }) {
 
     const letters = new Float32Array(6);
     let raf = 0, time = 0, last = performance.now();
-    const cueStart = touch ? "Swipe up to build the mark" : "Scroll to build the mark";
-    const cueMore = touch ? "Keep swiping" : "Keep scrolling";
 
     // Fly the logo into the header logo's position
     const flyToHeader = () => {
@@ -351,10 +334,12 @@ export default function IntroLoader({ onLand, onDone }) {
       const lenis = getLenis();
       if (lenis && !lenis.isStopped) lenis.stop();
 
+      if (ready) auto += dt;
       if (landing) {
         t += dt; // the landing plays out on its own once triggered
       } else {
-        t += (target - t) * (1 - Math.pow(0.004, dt)); // follow the scroll smoothly
+        if (skipped) t += (LAND - t) * (1 - Math.pow(0.0005, dt)); // catch up quickly
+        else t = clamp((auto - AUTO_DELAY) * AUTO_RATE, 0, LAND); // play on the clock
         if (t > LAND - 0.01) {
           t = LAND;
           landing = true;
@@ -379,12 +364,6 @@ export default function IntroLoader({ onLand, onDone }) {
       setVar(root, "--aura", appear * (0.35 + 0.65 * smooth(0, BUILT, t)) * (1 - smooth(LAND, LAND + 0.5, t)));
       setVar(taglineRef.current, "--in", clamp((t - L0 - 0.1) / (BUILT - 0.1 - L0 - 0.1), 0, 1));
       setVar(taglineRef.current, "--out", smooth(LAND, LAND + 0.35, t));
-
-      // Cue: shown at the start, and again whenever the visitor pauses mid-build
-      const idle = now - lastInput > 2000;
-      cueRef.current?.classList.toggle("show", ready && !landing && (target < 0.05 || idle));
-      const label = target < 0.3 ? cueStart : cueMore;
-      if (cueTextRef.current && cueTextRef.current.textContent !== label) cueTextRef.current.textContent = label;
 
       if (landing && t >= LAND + 0.15) land(); // hero + header animate in under the fading overlay
       const burst = smooth(LAND, LAND + 0.9, t);
@@ -428,7 +407,7 @@ export default function IntroLoader({ onLand, onDone }) {
       clearTimeout(stall);
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
-      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("wheel", skip);
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKey);
@@ -464,12 +443,6 @@ export default function IntroLoader({ onLand, onDone }) {
             </span>
           ))}
         </div>
-      </div>
-      <div className="story-cue intro-cue" ref={cueRef} aria-hidden="true">
-        <span className="mouse">
-          <i />
-        </span>
-        <span ref={cueTextRef}>{touch ? "Swipe up to build the mark" : "Scroll to build the mark"}</span>
       </div>
       <button ref={skipRef} type="button" className="intro-skip">
         Skip intro
