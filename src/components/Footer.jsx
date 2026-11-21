@@ -77,10 +77,6 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="footer-mark" aria-hidden="true">
-            <img src="/logos/gleits-on-dark.png" alt="" loading="lazy" />
-          </div>
-
           <div className="footer-bottom">
             <p>
               © {new Date().getFullYear()} {company.name}. All rights reserved. · Based in Sri Lanka. Building for the world.

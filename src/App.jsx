@@ -1,10 +1,10 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
 import { useReveal } from "./components/shared.jsx";
 import Cursor from "./effects/Cursor.jsx";
-import ScrollHud from "./effects/ScrollHud.jsx";
+import IntroLoader from "./effects/IntroLoader.jsx";
 import { useScramble } from "./effects/scramble.js";
 import { useParallax } from "./effects/useParallax.js";
 import { scrollToTarget, startSmoothScroll, stopSmoothScroll } from "./effects/smoothScroll.js";
@@ -20,8 +20,13 @@ import Contact from "./pages/Contact.jsx";
 import { Privacy, Terms } from "./pages/Legal.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
-export default function App() {
+export default function App({ playIntro = false }) {
   const { pathname, hash } = useLocation();
+
+  // Logo intro on first load of the Home page. As it lands, the hero and header animate in.
+  const [intro, setIntro] = useState(playIntro);
+  const onIntroLand = useCallback(() => document.documentElement.classList.remove("intro-active"), []);
+  const onIntroDone = useCallback(() => setIntro(false), []);
 
   // Inertial smooth scrolling for the whole site (must start before the effect below)
   useEffect(() => {
@@ -41,8 +46,8 @@ export default function App() {
 
   return (
     <>
+      {intro && <IntroLoader onLand={onIntroLand} onDone={onIntroDone} />}
       <Cursor />
-      <ScrollHud />
       <a className="skip-link" href="#main">
         Skip to content
       </a>

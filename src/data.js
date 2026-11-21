@@ -183,6 +183,6 @@ export const technologyGroups = [
 
 export const featuredTechnologies = ["React", "Next.js", "Node.js", "TypeScript", "Python", "Flutter", "PostgreSQL", "Docker", "JavaScript", "PHP", "Laravel", "MongoDB", "MySQL", "AWS", "Azure", "GitHub"];
 
-export const budgets = ["Not sure yet", "Under USD 1,000", "USD 1,000 – 5,000", "USD 5,000 – 15,000", "USD 15,000 – 50,000", "USD 50,000+"];
+export const budgets = ["Not sure yet", "Under USD 1,000", "USD 1,000 to 5,000", "USD 5,000 to 15,000", "USD 15,000 to 50,000", "USD 50,000+"];
 
 export const pad = (i) => String(i + 1).padStart(2, "0");

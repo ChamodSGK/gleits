@@ -44,7 +44,7 @@ export default function Technologies() {
               <span>Technology second.</span>
             </h2>
             <p>
-              A thoughtful technology choice starts with your project requirements — your users, your information and how
+              A thoughtful technology choice starts with your project requirements: your users, your information and how
               your business needs to grow.
             </p>
           </div>

@@ -7,7 +7,7 @@ const SITE = "GLEITS";
 /** Sets the document title, meta description and Open Graph tags for a page. */
 export function usePageMeta(title, description) {
   useEffect(() => {
-    const full = title ? `${title} | ${SITE}` : `${SITE} — Software Development & Technology Solutions`;
+    const full = title ? `${title} | ${SITE}` : `${SITE} | Software Development & Technology Solutions`;
     document.title = full;
     const set = (selector, attr, value) => {
       const el = document.head.querySelector(selector);

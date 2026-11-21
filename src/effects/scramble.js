@@ -5,14 +5,15 @@ import { useEffect } from "react";
  * into place left to right.
  *
  * - Small labels (eyebrows, mono labels, breadcrumbs…) decode when they scroll into view.
- * - Nav and footer links decode on hover.
+ * - Footer links decode on hover.
  *
  * Only touches elements whose content is a single text node, and edits that node's
  * value in place, so React's DOM stays intact.
  */
 const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+=/<>_";
-const ON_VIEW = ".eyebrow, .hero-chip, .label-mono, .breadcrumb [aria-current], .stage, .project-industry, [data-scramble]";
-const ON_HOVER = ".nav-link, .footer-links a, [data-scramble-hover]";
+const ON_VIEW = ".eyebrow, .label-mono, .breadcrumb [aria-current], .stage, .project-industry, [data-scramble]";
+// (Nav bar links are intentionally left out: they stay still on hover.)
+const ON_HOVER = ".footer-links a, [data-scramble-hover]";
 
 const running = new WeakSet();
 
@@ -23,17 +24,26 @@ function textNodeOf(el) {
 export function scramble(el, duration) {
   const node = textNodeOf(el);
   if (!node || running.has(el)) return;
-  const final = node.nodeValue;
-  if (!final.trim()) return;
+  if (!node.nodeValue.trim()) return;
   running.add(el);
-  const len = final.length;
-  const total = duration ?? Math.min(300 + len * 22, 1000);
-  // Each character resolves at its own moment, roughly left to right
-  const lockAt = Array.from(final, (_, i) => (i / len) * 0.75 + Math.random() * 0.25);
-  const start = performance.now();
+
+  let final, len, total, lockAt, start;
+  const begin = (text, now) => {
+    final = text;
+    len = final.length;
+    total = duration ?? Math.min(300 + len * 22, 1000);
+    // Each character resolves at its own moment, roughly left to right
+    lockAt = Array.from(final, (_, i) => (i / len) * 0.75 + Math.random() * 0.25);
+    start = now;
+  };
+  begin(node.nodeValue, performance.now());
   let lastSwap = 0;
+  let lastOut = final;
 
   const tick = (now) => {
+    // The text was changed underneath us (e.g. React re-rendered with a new label):
+    // decode the new text instead of restoring the old one at the end.
+    if (node.nodeValue !== lastOut) begin(node.nodeValue, now);
     const p = (now - start) / total;
     if (p >= 1) {
       node.nodeValue = final;
@@ -47,7 +57,7 @@ export function scramble(el, duration) {
         const ch = final[i];
         out += ch === " " || p >= lockAt[i] ? ch : GLYPHS[(Math.random() * GLYPHS.length) | 0];
       }
-      node.nodeValue = out;
+      node.nodeValue = lastOut = out;
     }
     requestAnimationFrame(tick);
   };

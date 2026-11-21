@@ -30,7 +30,7 @@ function ServiceCard({ service, index, big }) {
 export default function Services() {
   usePageMeta(
     "Services",
-    "Software, web, mobile, enterprise, UI/UX, cloud, QA, SEO and design services from GLEITS — connected by one goal: helping your business move forward.",
+    "Software, web, mobile, enterprise, UI/UX, cloud, QA, SEO and design services from GLEITS, connected by one goal: helping your business move forward.",
   );
 
   return (
@@ -46,7 +46,7 @@ export default function Services() {
         <div className="wrap">
           <div className="section-head rv" style={{ gap: 16 }}>
             <h2 id="core-title" className="eyebrow">
-              Core development — 01–04
+              Core development · 01 to 04
             </h2>
             <span className="count">10 SERVICES · ONE TEAM</span>
           </div>
@@ -61,7 +61,7 @@ export default function Services() {
       <section aria-labelledby="sup-title" style={{ padding: "clamp(64px, 8vw, 104px) 0 var(--section)" }}>
         <div className="wrap">
           <h2 id="sup-title" className="eyebrow rv">
-            Design, infrastructure &amp; growth — 05–10
+            Design, infrastructure &amp; growth · 05 to 10
           </h2>
           <div className="grid-support">
             {services.slice(4).map((s, i) => (

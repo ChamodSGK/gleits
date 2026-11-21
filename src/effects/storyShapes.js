@@ -1,13 +1,12 @@
 // Point-cloud shapes for the scroll story. Each returns a Float32Array of N xyz
-// positions, roughly within a radius of ~1.2 around the origin.
-// Particle i in one shape flies to particle i in the next, which gives the
-// chaotic "shatter and re-form" transition.
+// positions, roughly within a radius of ~1.2 around the origin. Each chapter
+// shape sits "frozen" inside an irregular crystal (see crystal()).
 
 /** Gaussian-ish random in about -1..1, so points cluster toward the middle. */
 const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 
 /** Small seeded PRNG so node layouts look the same on every visit. */
-function seeded(seed) {
+export function seeded(seed) {
   return () => {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;
@@ -151,6 +150,71 @@ export function ribbon(N) {
     }
     // centre the shape
     out.set([p[0] * 0.95, (p[1] - 0.03) * 0.95, p[2]], i * 3);
+  }
+  return out;
+}
+
+/**
+ * An irregular ice-like crystal: a twisted, slightly tapered hexagonal prism with
+ * jagged caps and a few fracture lines. ~80% of points trace the edges (crisp
+ * outline), the rest frost the faces. Height ≈ ±1.1, radius ≈ 0.5–0.7.
+ * `seed` makes each chapter's crystal a different (but stable) shape.
+ */
+export function crystal(N, seed) {
+  const rnd = seeded(seed);
+  const out = new Float32Array(N * 3);
+  const sides = 6;
+  const twist = (rnd() - 0.5) * 0.7;
+  const top = [];
+  const bot = [];
+  for (let k = 0; k < sides; k++) {
+    const a = (k / sides) * Math.PI * 2 + (rnd() - 0.5) * 0.4;
+    const rt = 0.46 + rnd() * 0.2;
+    const rb = 0.5 + rnd() * 0.2;
+    top.push([Math.cos(a + twist) * rt, 0.92 + (rnd() - 0.5) * 0.24, Math.sin(a + twist) * rt]);
+    bot.push([Math.cos(a) * rb, -0.92 + (rnd() - 0.5) * 0.24, Math.sin(a) * rb]);
+  }
+  const capT = [(rnd() - 0.5) * 0.25, 1.1 + rnd() * 0.1, (rnd() - 0.5) * 0.25];
+  const capB = [(rnd() - 0.5) * 0.25, -1.08 - rnd() * 0.1, (rnd() - 0.5) * 0.25];
+  const lerp = (p, q, t) => [0, 1, 2].map((d) => p[d] + (q[d] - p[d]) * t);
+
+  const edges = [];
+  for (let k = 0; k < sides; k++) {
+    const n = (k + 1) % sides;
+    edges.push([top[k], top[n]], [bot[k], bot[n]], [top[k], bot[k]], [top[k], capT], [bot[k], capB]);
+  }
+  for (let f = 0; f < 5; f++) {
+    // fracture lines across random faces
+    const k = (rnd() * sides) | 0;
+    const n = (k + 1) % sides;
+    edges.push([lerp(top[k], bot[k], rnd()), lerp(top[n], bot[n], rnd())]);
+  }
+  const len = edges.map(([p, q]) => Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]));
+  const total = len.reduce((a, b) => a + b, 0);
+  const pickEdge = () => {
+    let r = Math.random() * total;
+    for (let e = 0; e < edges.length; e++) {
+      r -= len[e];
+      if (r <= 0) return edges[e];
+    }
+    return edges[edges.length - 1];
+  };
+
+  for (let i = 0; i < N; i++) {
+    let p;
+    if (Math.random() < 0.82) {
+      const [a, b] = pickEdge(); // longer edges get proportionally more points
+      p = lerp(a, b, Math.random()).map((v) => v + gauss() * 0.006);
+    } else {
+      const k = (Math.random() * sides) | 0;
+      const n = (k + 1) % sides;
+      const u = Math.random();
+      const v = Math.random();
+      const upper = lerp(top[k], top[n], u);
+      const lower = lerp(bot[k], bot[n], u);
+      p = lerp(upper, lower, v).map((c) => c + gauss() * 0.012);
+    }
+    out.set(p, i * 3);
   }
   return out;
 }

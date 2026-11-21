@@ -9,7 +9,7 @@ export default function ProjectCard({ project: p, className = "", headingLevel =
       to={`/contact?project=${p.slug}`}
       className={`card project-card ${className}`}
       data-cursor="Ask us"
-      aria-label={`${p.name} — ${p.status}. Ask us about this project`}
+      aria-label={`${p.name}, ${p.status}. Ask us about this project`}
     >
       <div className="project-media">
         <img src={p.image} alt="" loading="lazy" width="800" height="600" />

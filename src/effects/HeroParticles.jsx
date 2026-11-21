@@ -4,13 +4,14 @@ import { useEffect, useRef } from "react";
  * Cursor-reactive particle ribbon (raw WebGL2, no libraries).
  *
  * Thousands of points stream along the curve of the GLEITS logo's i→t swash,
- * with the i-dot drawn as a particle cluster and a sparse ambient field
- * across the whole hero. The cursor pushes particles away and lights them up,
+ * with a sparse ambient field across the whole hero (no i-dot cluster here:
+ * as a bright spot it would sit on top of the headline). The cursor pushes particles away and lights them up,
  * the scene tilts slightly with the cursor (parallax), a click sends a
  * shockwave, and scrolling the hero away scatters the ribbon.
  *
- * The ribbon is fitted into `anchorRef`'s box so it lines up with the layout.
- * Calls `onFail()` if WebGL2 is unavailable so the page can keep its SVG fallback.
+ * The ribbon stretches across the full hero as a calm background (dimmed and
+ * sparse so it never competes with the centred headline).
+ * Calls `onFail()` if WebGL2 is unavailable so the page can show its SVG fallback.
  */
 
 const VERT = /* glsl */ `#version 300 es
@@ -20,15 +21,16 @@ in float aT;      // position along the ribbon, 0..1
 in float aOff;    // offset across the ribbon (normal direction)
 in float aZ;      // depth, 0 (far) .. 1 (near)
 in float aSeed;   // random 0..1
-in float aKind;   // 0 ribbon, 1 logo dot, 2 ambient
-in vec2  aPos;    // local position for dot / screen position for ambient
+in float aKind;   // 0 ribbon, 2 ambient dust
+in vec2  aPos;    // screen position for ambient dust
 
 uniform float uTime;
 uniform float uAspect;
 uniform vec2  uBoxCenter;
-uniform float uBoxScale;
+uniform vec2  uBoxScale;   // x and y scale: the ribbon is stretched to the screen's width
 uniform vec2  uMouse;      // world space
 uniform float uMouseOn;    // 0..1, fades in when the cursor is over the hero
+uniform float uRepel;      // push radius (world units): smaller on narrow screens
 uniform vec3  uClick;      // xy world, z = time of click
 uniform float uScroll;     // 0 at top .. 1 when hero is scrolled away
 uniform float uPx;         // device pixel ratio
@@ -71,11 +73,6 @@ void main() {
     p = pt + n * aOff * breathe;
     alpha = smoothstep(0.0, 0.08, t) * smoothstep(1.0, 0.9, t);
     p = p * uBoxScale + uBoxCenter;
-  } else if (aKind < 1.5) {
-    // The i-dot: a slowly orbiting cluster
-    float a = uTime * (0.2 + aSeed * 0.3) + aSeed * 40.0;
-    vec2 local = aPos + vec2(cos(a), sin(a)) * 0.006;
-    p = local * uBoxScale + uBoxCenter;
   } else {
     // Ambient dust, drifting upward
     p = aPos * vec2(uAspect, 1.0);
@@ -90,8 +87,8 @@ void main() {
   // Cursor repulsion + glow
   vec2 d = p - uMouse;
   float dist = length(d);
-  float infl = smoothstep(0.38, 0.0, dist) * uMouseOn;
-  p += (dist > 0.0001 ? d / dist : vec2(0.0)) * infl * (0.16 + 0.08 * aZ);
+  float infl = smoothstep(uRepel, 0.0, dist) * uMouseOn;
+  p += (dist > 0.0001 ? d / dist : vec2(0.0)) * infl * (0.16 + 0.08 * aZ) * (uRepel / 0.38);
 
   // Click shockwave
   float age = uTime - uClick.z;
@@ -100,7 +97,7 @@ void main() {
     float dcl = length(dc);
     float r = age * 1.1;
     float ring = exp(-pow((dcl - r) * 7.0, 2.0)) * exp(-age * 1.6);
-    p += (dcl > 0.0001 ? dc / dcl : vec2(0.0)) * ring * 0.22;
+    p += (dcl > 0.0001 ? dc / dcl : vec2(0.0)) * ring * 0.22 * (uRepel / 0.38);
     infl = max(infl, ring);
   }
 
@@ -110,7 +107,7 @@ void main() {
   alpha *= 1.0 - uScroll * 0.85;
 
   gl_Position = vec4(p.x / uAspect, p.y, 0.0, 1.0);
-  float size = uSize * (0.55 + aZ * 1.1) * (aKind > 1.5 ? 0.7 : 1.0) * (aKind > 0.5 && aKind < 1.5 ? 1.3 : 1.0);
+  float size = uSize * (0.55 + aZ * 1.1) * (aKind > 1.5 ? 0.7 : 1.0);
   gl_PointSize = size * uPx * (1.0 + infl * 1.4);
 
   vAlpha = alpha * (0.35 + 0.65 * aZ);
@@ -123,6 +120,7 @@ precision mediump float;
 in float vAlpha;
 in float vHeat;
 in float vSeed;
+uniform float uDim; // overall strength: kept low so the ribbon stays in the background
 out vec4 outColor;
 
 void main() {
@@ -135,8 +133,8 @@ void main() {
   vec3 mist = vec3(0.84, 0.855, 0.878);    // #D6DADF
   vec3 col = mix(blue, sky, vSeed);
   col = mix(col, mist, step(0.93, vSeed) * 0.8); // a few silver sparks, like the logo grey
-  col = mix(col, vec3(1.0), vHeat * 0.7);
-  outColor = vec4(col * soft, soft * vAlpha * (0.75 + vHeat));
+  col = mix(col, vec3(1.0), vHeat * 0.45);
+  outColor = vec4(col * soft * uDim, soft * vAlpha * (0.75 + vHeat) * uDim);
 }`;
 
 function compile(gl, type, src) {
@@ -151,10 +149,9 @@ function compile(gl, type, src) {
 const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 
 function buildParticles(count) {
-  const ribbon = Math.floor(count * 0.78);
-  const dot = Math.floor(count * 0.07);
-  const ambient = count - ribbon - dot;
-  const n = ribbon + dot + ambient;
+  const ribbon = Math.floor(count * 0.8);
+  const ambient = count - ribbon;
+  const n = ribbon + ambient;
   const T = new Float32Array(n), OFF = new Float32Array(n), Z = new Float32Array(n);
   const SEED = new Float32Array(n), KIND = new Float32Array(n), POS = new Float32Array(n * 2);
   // Ribbon strands echo the hero SVG: a thick core plus thin parallel lines
@@ -167,15 +164,6 @@ function buildParticles(count) {
     Z[i] = Math.random();
     SEED[i] = Math.random();
   }
-  for (; i < ribbon + dot; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = Math.sqrt(Math.random()) * 0.075;
-    POS[i * 2] = 0.59 + Math.cos(a) * r;
-    POS[i * 2 + 1] = 0.5 + Math.sin(a) * r;
-    KIND[i] = 1;
-    Z[i] = 0.6 + Math.random() * 0.4;
-    SEED[i] = 0.85 + Math.random() * 0.15; // mostly silver, like the logo's i-dot
-  }
   for (; i < n; i++) {
     POS[i * 2] = Math.random() * 2 - 1;
     POS[i * 2 + 1] = Math.random() * 2 - 1;
@@ -186,7 +174,7 @@ function buildParticles(count) {
   return { n, attrs: { aT: [T, 1], aOff: [OFF, 1], aZ: [Z, 1], aSeed: [SEED, 1], aKind: [KIND, 1], aPos: [POS, 2] } };
 }
 
-export default function HeroParticles({ anchorRef, onFail }) {
+export default function HeroParticles({ onFail }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -213,7 +201,7 @@ export default function HeroParticles({ anchorRef, onFail }) {
     gl.useProgram(prog);
 
     const small = window.matchMedia("(max-width: 760px)").matches;
-    const { n, attrs } = buildParticles(small ? 2600 : 7000);
+    const { n, attrs } = buildParticles(small ? 2000 : 4200);
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
     const buffers = [];
@@ -228,7 +216,7 @@ export default function HeroParticles({ anchorRef, onFail }) {
     }
 
     const U = {};
-    for (const name of ["uTime", "uAspect", "uBoxCenter", "uBoxScale", "uMouse", "uMouseOn", "uClick", "uScroll", "uPx", "uSize"]) {
+    for (const name of ["uTime", "uAspect", "uBoxCenter", "uBoxScale", "uMouse", "uMouseOn", "uClick", "uScroll", "uPx", "uSize", "uDim", "uRepel"]) {
       U[name] = gl.getUniformLocation(prog, name);
     }
 
@@ -236,9 +224,9 @@ export default function HeroParticles({ anchorRef, onFail }) {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied, additive-looking glow
     gl.clearColor(0, 0, 0, 0);
 
-    // ---- sizing: canvas fills the hero; ribbon fits the anchor box ----
+    // ---- sizing: canvas fills the hero; the ribbon runs edge to edge ----
     let w = 1, h = 1, dpr = 1, aspect = 1;
-    const box = { cx: 0.5, cy: 0, s: 0.6 };
+    const box = { cx: 0, cy: 0, sx: 1, sy: 0.6 };
     const toWorld = (px, py) => [((px / w) * 2 - 1) * aspect, -((py / h) * 2 - 1)];
 
     const resize = () => {
@@ -250,13 +238,13 @@ export default function HeroParticles({ anchorRef, onFail }) {
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       gl.viewport(0, 0, canvas.width, canvas.height);
-      const a = anchorRef?.current?.getBoundingClientRect();
-      if (a && a.width > 0) {
-        const [cx, cy] = toWorld(a.left - r.left + a.width / 2, a.top - r.top + a.height / 2);
-        box.cx = cx;
-        box.cy = cy;
-        box.s = a.width / h; // world units per local unit (local box is -1..1)
-      }
+      // Local ribbon x spans about ±1.15, so it slightly overruns both edges (full bleed).
+      // Vertically it stays moderate so the curve sweeps behind the text, low to high.
+      const wide = aspect >= 1;
+      box.cx = 0;
+      box.cy = wide ? -0.08 : -0.12;
+      box.sx = aspect * (wide ? 0.92 : 1.0);
+      box.sy = wide ? 0.62 : 0.45;
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -282,6 +270,12 @@ export default function HeroParticles({ anchorRef, onFail }) {
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerdown", onDown, { passive: true });
     document.addEventListener("pointerleave", onLeave);
+    // On touch screens, let the dots settle back once the finger lifts
+    const onUp = (e) => {
+      if (e.pointerType !== "mouse") mouse.ton = 0;
+    };
+    window.addEventListener("pointerup", onUp, { passive: true });
+    window.addEventListener("pointercancel", onUp, { passive: true });
 
     // ---- loop (paused when off-screen or tab hidden) ----
     let raf = 0, time = 0, last = performance.now(), visible = true;
@@ -312,13 +306,15 @@ export default function HeroParticles({ anchorRef, onFail }) {
       gl.uniform1f(U.uTime, time);
       gl.uniform1f(U.uAspect, aspect);
       gl.uniform2f(U.uBoxCenter, box.cx, box.cy);
-      gl.uniform1f(U.uBoxScale, box.s);
+      gl.uniform2f(U.uBoxScale, box.sx, box.sy);
       gl.uniform2f(U.uMouse, mouse.x, mouse.y);
       gl.uniform1f(U.uMouseOn, mouse.on);
+      gl.uniform1f(U.uRepel, Math.min(0.38, aspect * 0.3)); // ~0.14 on a phone
       gl.uniform3f(U.uClick, click[0], click[1], click[2]);
       gl.uniform1f(U.uScroll, scroll);
       gl.uniform1f(U.uPx, dpr);
-      gl.uniform1f(U.uSize, small ? 3.2 : 3.6);
+      gl.uniform1f(U.uSize, small ? 2.8 : 3.1);
+      gl.uniform1f(U.uDim, 0.6);
       gl.drawArrays(gl.POINTS, 0, n);
       raf = requestAnimationFrame(frame);
     }
@@ -337,6 +333,8 @@ export default function HeroParticles({ anchorRef, onFail }) {
       ro.disconnect();
       io.disconnect();
       window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       window.removeEventListener("pointerdown", onDown);
       document.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("visibilitychange", onVis);
@@ -344,7 +342,7 @@ export default function HeroParticles({ anchorRef, onFail }) {
       gl.deleteVertexArray(vao);
       gl.deleteProgram(prog);
     };
-  }, [anchorRef, onFail]);
+  }, [onFail]);
 
   return <canvas ref={canvasRef} className="hero-canvas" aria-hidden="true" />;
 }
