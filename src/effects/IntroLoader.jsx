@@ -21,10 +21,13 @@ const LETTERS = ["G", "L", "E", "I", "T", "S"];
 const TAGLINE = "Empowering Innovation Through Technology Excellence!";
 
 /* ---- Timeline, in "build progress" units (played at AUTO_RATE units per second) ---- */
-const L0 = 0.1; // first letter starts
-const STEP = 0.36; // gap between letters
-const DUR = 0.6; // length of one letter's flight
-const BUILT = L0 + 5 * STEP + DUR; // 2.5: all six letters in place
+const L0 = 0.1; // the build starts
+const BUILT = 2.5; // the whole logo is in place
+// The logo forms in one continuous sweep, left to right: each particle sets off when the
+// sweep reaches its x position, so g flows straight into l, e, i, t, s with no pauses.
+const SWEEP_W = 0.35; // how long one particle's flight lasts, as a share of the sweep
+// Where each letter sits across the logo (0 = left edge, 1 = right), for the slots below it
+const LETTER_X = [0, 0.224, 0.34, 0.548, 0.69, 0.842, 1];
 const LOCK = BUILT + 0.05; // real logo image takes over; particles fade out by LOCK + 0.3
 const LAND = 3.45; // landing begins here
 const LAND_DUR = 1.4; // the landing itself, in seconds (the logo's flight in CSS takes 1.3s)
@@ -33,9 +36,10 @@ const AUTO_RATE = 0.7; // playback speed: letters done ≈3.9s, landing ≈5.3s,
 
 const VERT = /* glsl */ `#version 300 es
 precision highp float;
-in vec2 aLogo; in vec3 aLogoCol; in float aLetter;
+in vec2 aLogo; in vec3 aLogoCol;
 in vec3 aRand; in float aSeed;
-uniform float uLetters[6];
+uniform float uBuild;   // sweep position: 0 → 1 + uWidth
+uniform float uWidth;   // one particle's flight, in sweep units
 uniform vec2  uLogoCenter;
 uniform float uLogoScale;
 uniform float uAspect;
@@ -51,7 +55,9 @@ uniform float uSize;
 out float vAlpha; out float vHeat; out float vSeed; out vec3 vCol; out float vLogo; out float vGate;
 const float PI = 3.14159265;
 void main() {
-  float a = uLetters[int(aLetter + 0.5)];
+  // left-to-right sweep with a slightly ragged front so it reads as a flow, not a wipe
+  float order = (aLogo.x + 1.0) * 0.5 * 0.9 + aSeed * 0.1;
+  float a = clamp((uBuild - order) / uWidth, 0.0, 1.0);
   float ae = a * a * (3.0 - 2.0 * a);
   vec2 logo = aLogo * uLogoScale + uLogoCenter;
   vec2 dust = uLogoCenter + vec2(aRand.x * uAspect, aRand.y) * (0.55 + aSeed * 0.75);
@@ -94,7 +100,7 @@ void main() {
   outColor = vec4(col * soft * vGate, soft * min(1.0, vAlpha * (0.8 + vHeat)));
 }`;
 
-const UNIFORMS = ["uLetters", "uLogoCenter", "uLogoScale", "uAspect", "uTime", "uFade", "uBurst", "uVis", "uMouse", "uMouseOn", "uRepel", "uPx", "uSize"];
+const UNIFORMS = ["uBuild", "uWidth", "uLogoCenter", "uLogoScale", "uAspect", "uTime", "uFade", "uBurst", "uVis", "uMouse", "uMouseOn", "uRepel", "uPx", "uSize"];
 
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
 const smooth = (a, b, v) => {
@@ -303,7 +309,6 @@ export default function IntroLoader({ onLand, onDone }) {
       }
     };
 
-    const letters = new Float32Array(6);
     let raf = 0, time = 0, last = performance.now();
 
     // Fly the logo into the header logo's position
@@ -347,9 +352,12 @@ export default function IntroLoader({ onLand, onDone }) {
         }
       }
 
+      // One continuous sweep; each letter's slot fills while the sweep crosses that letter
+      const build = clamp((t - L0) / (BUILT - L0), 0, 1) * (1 + SWEEP_W);
       for (let i = 0; i < 6; i++) {
-        const a = smooth(L0 + i * STEP, L0 + i * STEP + DUR, t);
-        letters[i] = a;
+        const x0 = LETTER_X[i] * 0.9;
+        const x1 = LETTER_X[i + 1] * 0.9 + 0.1 + SWEEP_W;
+        const a = clamp((build - x0) / (x1 - x0), 0, 1);
         const slot = slotRefs.current[i];
         if (slot) {
           setVar(slot, "--f", a);
@@ -378,7 +386,8 @@ export default function IntroLoader({ onLand, onDone }) {
 
       if (ready) {
         gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.uniform1fv(U.uLetters, letters);
+        gl.uniform1f(U.uBuild, build);
+        gl.uniform1f(U.uWidth, SWEEP_W);
         gl.uniform2f(U.uLogoCenter, logoCenter[0], logoCenter[1]);
         gl.uniform1f(U.uLogoScale, logoScale);
         gl.uniform1f(U.uAspect, aspect);
